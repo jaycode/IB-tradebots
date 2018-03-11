@@ -113,6 +113,7 @@ class TestApp(TestWrapper, TestClient):
     def __init__(self, ipaddress, portid, clientid):
         TestWrapper.__init__(self)
         TestClient.__init__(self, wrapper=self)
+        self.init_error()
 
         self.connect(ipaddress, portid, clientid)
 
@@ -121,7 +122,6 @@ class TestApp(TestWrapper, TestClient):
 
         setattr(self, "_thread", thread)
 
-        self.init_error()
 
 
 if __name__ == '__main__':
@@ -129,7 +129,7 @@ if __name__ == '__main__':
     ## Check that the port is the same as on the Gateway
     ## ipaddress is 127.0.0.1 if one same machine, clientid is arbitrary
 
-    app = TestApp("127.0.0.1", 4001, 10)
+    app = TestApp("127.0.0.1", 7497, 10)
 
     current_time = app.speaking_clock()
 
