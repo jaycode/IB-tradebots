@@ -5,6 +5,9 @@ from ibapi.wrapper import EWrapper, Contract
 from ibapi.client import EClient
 from threading import Thread
 import queue
+import pickle
+
+MAX_WAIT_SECONDS = 10
 
 class TestWrapper(EWrapper):
     ## error handling code
@@ -44,11 +47,12 @@ class TestWrapper(EWrapper):
             'position': position,
             'avgCost': avgCost
         }
-        self._positionsQueue.put(position)
+        ppos = pickle.dumps(position)
+        self._positionsQueue.put(ppos)
 
     def positionEnd(self):
         super().positionEnd()
-        print("PositionEnd")
+        self._positionsQueue.put(pickle.dumps(False))
 
 class TestApp(TestWrapper, EClient):
     def __init__(self, ipaddress, portid, clientid):
@@ -63,28 +67,17 @@ class TestApp(TestWrapper, EClient):
 
         setattr(self, "_thread", thread)
 
-
-
-if __name__ == '__main__':
-    ##
-    ## Check that the port is the same as on the Gateway
-    ## ipaddress is 127.0.0.1 if one same machine, clientid is arbitrary
-
-    app = TestApp("127.0.0.1", 7497, 10)
-
-
-    pos_storage = app.initPositions()
-
-    ## Try and get a valid time
-    MAX_WAIT_SECONDS = 10
-
-    try:
+    def getPositions(self):
+        positions = []
+        posQ = app.initPositions()
+        app.reqPositions()
         try:
-            positions = pos_storage.get(timeout=MAX_WAIT_SECONDS)
-            for pos in positions:
-                print("Position.", pos['account'], "Symbol:", pos['contract'].symbol, "SecType:",
-                      pos['contract'].secType, "Currency:", pos['contract'].currency,
-                      "Position:", pos['position'], "Avg cost:", pos['avgCost'])
+            while True:
+                position = posQ.get(timeout=MAX_WAIT_SECONDS)
+                pos = pickle.loads(position)
+                if not pos:
+                    break
+                positions.append(pos)
 
         except queue.Empty:
             print("Exceeded maximum wait for wrapper to respond")
@@ -93,6 +86,23 @@ if __name__ == '__main__':
         while app.wrapper.is_error():
             print(app.get_error())
 
+        return positions        
+
+if __name__ == '__main__':
+    ##
+    ## Check that the port is the same as on the Gateway
+    ## ipaddress is 127.0.0.1 if one same machine, clientid is arbitrary
+
+    app = TestApp("127.0.0.1", 7497, 10)
+
+    try:
+        positions = app.getPositions()
+        for pos in positions:
+            print("Account:", pos['account'],
+                  "Symbol:", pos['contract'].symbol,
+                  "SecType:", pos['contract'].secType,
+                  "Currency:", pos['contract'].currency,
+                  "Position:", pos['position'], "Avg cost:", pos['avgCost'])
 
     finally:
         app.disconnect()
